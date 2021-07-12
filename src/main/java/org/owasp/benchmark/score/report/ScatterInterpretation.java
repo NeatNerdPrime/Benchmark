@@ -25,11 +25,16 @@ import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.ui.TextAnchor;
 import org.jfree.data.xy.XYSeriesCollection;
+import org.owasp.benchmark.score.BenchmarkScore;
 
 public class ScatterInterpretation extends ScatterPlot {
 
     public ScatterInterpretation(int height) {
-        display("          OWASP Benchmark Results Interpretation Guide", height);
+        display(
+                "          "
+                        + BenchmarkScore.fullTestSuiteName(BenchmarkScore.TESTSUITE)
+                        + " Results Interpretation Guide",
+                height);
     }
 
     private JFreeChart display(String title, int height) {
@@ -45,10 +50,11 @@ public class ScatterInterpretation extends ScatterPlot {
                         true,
                         true,
                         false);
+
         theme.apply(chart);
+        initializePlot(chart);
 
         XYPlot xyplot = chart.getXYPlot();
-        initializePlot(xyplot);
 
         makePointer(xyplot, 7, 93, " Ideal vulnerability detection", TextAnchor.TOP_LEFT, 45);
         makePointer(xyplot, 10, 10, " Tool reports nothing is vulnerable", TextAnchor.TOP_LEFT, 45);
@@ -68,7 +74,7 @@ public class ScatterInterpretation extends ScatterPlot {
 
     public static void main(String[] args) throws IOException {
         ScatterInterpretation scatter = new ScatterInterpretation(800);
-        scatter.writeChartToFile(new File("benchmark_guide.png"), 800);
+        scatter.writeChartToFile(new File("testsuite_guide.png"), 800);
         System.exit(0);
     }
 }

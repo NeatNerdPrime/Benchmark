@@ -19,10 +19,13 @@ package org.owasp.benchmark.score.parsers;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.util.ArrayList;
 import java.util.List;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.owasp.benchmark.score.BenchmarkScore;
+import org.owasp.benchmark.score.TestCaseResult;
+import org.owasp.benchmark.score.TestSuiteResults;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -30,7 +33,7 @@ import org.xml.sax.InputSource;
 
 public class PMDReader extends Reader {
 
-    public TestResults parse(File f) throws Exception {
+    public TestSuiteResults parse(File f) throws Exception {
         DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();
         // Prevent XXE
         docBuilderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
@@ -38,7 +41,7 @@ public class PMDReader extends Reader {
         InputSource is = new InputSource(new FileInputStream(f));
         Document doc = docBuilder.parse(is);
 
-        TestResults tr = new TestResults("PMD", false, TestResults.ToolType.SAST);
+        TestSuiteResults tr = new TestSuiteResults("PMD", false, TestSuiteResults.ToolType.SAST);
 
         // If the filename includes an elapsed time in seconds (e.g., TOOLNAME-seconds.xml), set the
         // compute time on the scorecard.
@@ -53,8 +56,8 @@ public class PMDReader extends Reader {
         List<Node> fileList = getNamedNodes("file", rootList);
 
         for (Node file : fileList) {
-            TestCaseResult tcr = parsePMDItem(file);
-            if (tcr != null) {
+            List<TestCaseResult> tcrs = parsePMDItem(file);
+            for (TestCaseResult tcr : tcrs) {
                 tr.put(tcr);
             }
         }
@@ -62,44 +65,58 @@ public class PMDReader extends Reader {
         return tr;
     }
 
-    private TestCaseResult parsePMDItem(Node fileNode) {
+    private List<TestCaseResult> parsePMDItem(Node fileNode) {
 
+        List<TestCaseResult> results = new ArrayList<TestCaseResult>();
         String filename = fileNode.getAttributes().getNamedItem("name").getNodeValue();
 
-        Node violationNode = getNamedChild("violation", fileNode);
-        String violation = violationNode.getAttributes().getNamedItem("rule").getNodeValue();
+        List<Node> violationNodes = getNamedChildren("violation", fileNode);
+        for (Node violationNode : violationNodes) {
+            String violation = violationNode.getAttributes().getNamedItem("rule").getNodeValue();
 
-        String testclass = filename.substring(filename.lastIndexOf("/") + 1);
-        if (testclass.startsWith(BenchmarkScore.TESTCASENAME)) {
-            TestCaseResult tcr = new TestCaseResult();
+            String testclass = filename.substring(filename.lastIndexOf("/") + 1);
+            if (testclass.startsWith(BenchmarkScore.TESTCASENAME)) {
+                TestCaseResult tcr = new TestCaseResult();
 
-            String testNumber =
-                    testclass.substring(
-                            BenchmarkScore.TESTCASENAME.length(),
-                            BenchmarkScore.TESTCASENAME.length() + BenchmarkScore.TESTIDLENGTH);
-            try {
-                tcr.setNumber(Integer.parseInt(testNumber));
-            } catch (NumberFormatException e) {
-                return null; // If we can't parse the test #, its not in a real test case file.
-                // e.g.,
-                // BenchmarkTesting.java
+                String testNumber =
+                        testclass.substring(
+                                BenchmarkScore.TESTCASENAME.length(),
+                                BenchmarkScore.TESTCASENAME.length() + BenchmarkScore.TESTIDLENGTH);
+                try {
+                    tcr.setNumber(Integer.parseInt(testNumber));
+                } catch (NumberFormatException e) {
+                    return null; // If we can't parse the test #, its not in a real test case file.
+                    // e.g.,
+                    // BenchmarkTesting.java
+                }
+                tcr.setCWE(figureCWE(tcr, violation));
+
+                tcr.setCategory(violation);
+                tcr.setEvidence(violation);
+                results.add(tcr);
             }
-            tcr.setCWE(figureCWE(tcr, violation));
-
-            tcr.setCategory(violation);
-            tcr.setEvidence(violation);
-            return tcr;
         }
 
-        return null;
+        return results;
     }
 
     private static int figureCWE(TestCaseResult tcr, String rule) {
         switch (rule) {
+            case "AvoidUsingOctalValues":
             case "CollapsibleIfStatements":
             case "EmptyCatchBlock":
+            case "EmptyFinallyBlock":
+            case "EmptyIfStmt":
+            case "EmptyStatementNotInLoop":
+            case "EmptySwitchStatements":
+            case "UnnecessaryConversionTemporary":
+            case "UnnecessaryFullyQualifiedName":
+            case "UnnecessaryModifier":
+            case "UnnecessaryReturn":
             case "UnusedFormalParameter":
+            case "UnusedImports":
             case "UnusedLocalVariable":
+            case "UnusedPrivateMethod":
             case "UselessParentheses":
                 return 0000; // Don't care
                 // Don't think PMD reports any of these:
